@@ -15,7 +15,6 @@
 #define THREADSIZE 1024
 
 //Not a general outer product kernel, do not use in anything but DSPSR, due to implicit assumptions
-//Assumes lhsMatrixLength == rhsMatrixLength
 __global__ void wholeOuterProductSum(float* resultMatrix, float* lhsMatrix, float* rhsMatrix, int resultMatrixGridBlockRowIdx, int resultMatrixGridBlockColIdx)
 {
 	//Absolute threadIdx within a block of the results grid
@@ -43,7 +42,23 @@ __global__ void wholeOuterProductSum(float* resultMatrix, float* lhsMatrix, floa
 
 __global__ void upperTrianglarOuterProduct(float* resultMatrix, float* lhsMatrix, float* rhsMatrix, int resultMatrixGridBlockRowIdx, int resultMatrixGridBlockColIdx)
 {
+	//Absolute threadIdx within a block of the results grid
+	const int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
 
+	//Calculate the index to write the result into the result matrix
+	int indexRowCalc = absoluteThreadIdx / BINSIZE;
+	int indexColCalc = absoluteThreadIdx % BINSIZE;
+	int totalColumnSize = 4 * BINSIZE;
+
+	int offsetCalc = (indexRowCalc * (indexRowCalc + 1) / 2);
+
+
+
+	//LHS is correct, RHS is not correct yet
+	//Result matrix has not been attempted yet
+
+	resultMatrix[] += lhsMatrix[(absoluteThreadIdx + offsetCalc) / BINSIZE] *
+			rhsMatrix[];
 }
 
 
