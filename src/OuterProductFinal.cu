@@ -12,7 +12,41 @@
 #include <cuda_runtime.h>
 
 #define BINSIZE 1024
-#define THREADSIZE 1024
+#define THREADSIZE 256
+
+
+//Assumes square matrices
+__device__ unsigned int upperTriangularLength(unsigned int numRows)
+{
+	//printf("%d", (numRows * (numRows + 1)) / 2);
+	return (numRows * (numRows + 1)) / 2;
+}
+
+
+//Converts normal matrix index to an upper trianglar matrix ROW INDEX
+__device__ int  upperTrianglarRowIndex(int idx, int matDim)
+{
+	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
+	int k = floorf( (sqrtf(8 * temp + 1) - 1) / 2);
+	return matDim - 1 - k;
+}
+
+
+//Converts normal matrix index to an upper trianglar matrix COLUMN INDEX
+__device__ int upperTriangluarColumnIndex(int idx, int matDim)
+{
+	int row = upperTrianglarRowIndex(idx, matDim);
+	return idx - matDim * row + row * (row + 1) / 2;
+}
+
+
+//Converts normal matrix index to an upper trianglar matrix COLUMN INDEX
+__device__ int upperTriangluarColumnIndexWithRow(int idx, int matDim, int rowIdx)
+{
+	return idx - matDim * rowIdx + rowIdx * (rowIdx + 1) / 2;
+}
+
+
 
 //Not a general outer product kernel, do not use in anything but DSPSR, due to implicit assumptions
 __global__ void wholeOuterProductSum(float* resultMatrix, float* lhsMatrix, float* rhsMatrix, int resultMatrixGridBlockRowIdx, int resultMatrixGridBlockColIdx)
@@ -45,29 +79,42 @@ __global__ void upperTrianglarOuterProduct(float* resultMatrix, float* lhsMatrix
 	//Absolute threadIdx within a block of the results grid
 	const int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
 
-	//Calculate the index to write the result into the result matrix
-	int indexRowCalc = absoluteThreadIdx / BINSIZE;
-	int indexColCalc = absoluteThreadIdx % BINSIZE;
-	int totalColumnSize = 4 * BINSIZE;
-
-	int offsetCalc = (indexRowCalc * (indexRowCalc + 1) / 2);
+	int triRowIndex = upperTrianglarRowIndex(absoluteThreadIdx, BINSIZE);
+	int triColumnIndex = upperTriangluarColumnIndexWithRow(absoluteThreadIdx, BINSIZE, triRowIndex);
 
 
+	resultMatrix[] += lhsMatrix[triRowIndex] * rhsMatrix[triColumnIndex];
 
-	//LHS is correct, RHS is not correct yet
-	//Result matrix has not been attempted yet
 
-	resultMatrix[] += lhsMatrix[(absoluteThreadIdx + offsetCalc) / BINSIZE] *
-			rhsMatrix[];
 }
 
 
-//Assumes square matrices
-__device__ __host__ unsigned int upperTriangularLength(unsigned int numRows)
-{
-	//printf("%d", (numRows * (numRows + 1)) / 2);
-	return (numRows * (numRows + 1)) / 2;
+
+
+
+/*
+row_index(i, M):
+    ii = M(M+1)/2-1-i
+    K = floor((sqrt(8ii+1)-1)/2)
+    return M-1-K
+
+or
+
+
+unsigned int row_index( unsigned int i, unsigned int M ){
+    double m = M;
+    double row = (-2*m - 1 + sqrt( (4*m*(m+1) - 8*(double)i - 7) )) / -2;
+    if( row == (double)(int) row ) row -= 1;
+    return (unsigned int) row;
 }
+
+
+unsigned int column_index( unsigned int i, unsigned int M ){
+    unsigned int row = row_index( i, M);
+    return  i - M * row + row*(row+1) / 2;
+}
+*/
+
 
 
 void testWholeOuterProduct()
@@ -96,9 +143,11 @@ void testWholeOuterProduct()
 }
 
 
+
 int main()
 {
-	testWholeOuterProduct();
+	//upperTrianglarRowIndex
+	//testWholeOuterProduct();
 	//upperTriangularLength(2);
 	return 0;
 }
