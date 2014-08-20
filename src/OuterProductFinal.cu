@@ -15,6 +15,9 @@
 //#define BINSIZE 6
 #define THREADSIZE 256
 
+//TODO: REMOVE RHSMATRIX from both kernels
+//TODO: remove either resultMatrixGridBlockRowIdx or resultMatrixGridBlockColIdx from the upperTriangular kernel as they will always be the same
+
 
 // ---------------- DEVICE FUNCTIONS / KERNELS ----------------------------------
 
@@ -56,85 +59,89 @@ __global__ void wholeOuterProductSum(float* resultMatrix, float* lhsMatrix, floa
 {
 
 	//Absolute threadIdx within a block of the results grid
-	const int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
+	//const int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
 
-	//check bounds
-	if(absoluteThreadIdx >= resultBlockWidth * resultBlockWidth)
-		return;
+	int threadsNeeded = resultBlockWidth * resultBlockWidth;
 
-	//Calculate the index to write the result into the result matrix
-	int localIndexRowCalc = absoluteThreadIdx / resultBlockWidth;
-	int localIndexColCalc = absoluteThreadIdx % resultBlockWidth;
-
-	int totalColumnSize = resultBlockWidth * resultGridWidth; ////BEWARE OF THIS CONSTANT //BLOCKSIZE * 4
-
-	int resultRow = (resultMatrixGridBlockRowIdx * resultBlockWidth) + localIndexRowCalc;
-	int resultCol = (resultMatrixGridBlockColIdx * resultBlockWidth) + localIndexColCalc;
-	int lowerTrianglarLength = (resultRow * (resultRow + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
-
-	int resultMatrixIdx = (resultRow * totalColumnSize + resultCol) - lowerTrianglarLength;
-
-
-	/*
-	if(absoluteThreadIdx == 0)
+	for(int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x; absoluteThreadIdx < threadsNeeded; absoluteThreadIdx += gridDim.x * blockDim.x)
 	{
-		printf("resultRow: %d\n", resultRow);
-		printf("localIndexColCalc: %d\n", localIndexColCalc);
-		printf("resultCol: %d\n", resultCol);
-		printf("resultMatrixIdx: %d\n", resultMatrixIdx);
+
+		//Calculate the index to write the result into the result matrix
+		int localIndexRowCalc = absoluteThreadIdx / resultBlockWidth;
+		int localIndexColCalc = absoluteThreadIdx % resultBlockWidth;
+
+		int totalColumnSize = resultBlockWidth * resultGridWidth;
+
+		int resultRow = (resultMatrixGridBlockRowIdx * resultBlockWidth) + localIndexRowCalc;
+		int resultCol = (resultMatrixGridBlockColIdx * resultBlockWidth) + localIndexColCalc;
+		int lowerTrianglarLength = (resultRow * (resultRow + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
+
+		int resultMatrixIdx = (resultRow * totalColumnSize + resultCol) - lowerTrianglarLength;
+
+		/*
+		if(absoluteThreadIdx == 0)
+		{
+			printf("resultRow: %d\n", resultRow);
+			printf("localIndexColCalc: %d\n", localIndexColCalc);
+			printf("resultCol: %d\n", resultCol);
+			printf("resultMatrixIdx: %d\n", resultMatrixIdx);
+		}
+		*/
+
+		//Calculate the lhsMatrix and rhsMatrix indices to get elements from
+		int lhsMatIndex = localIndexRowCalc + (resultMatrixGridBlockRowIdx * resultBlockWidth);
+		int rhsMatIndex = localIndexColCalc + (resultMatrixGridBlockColIdx * resultBlockWidth);
+
+		//write output to the result matrix
+		resultMatrix[resultMatrixIdx] += lhsMatrix[lhsMatIndex] * rhsMatrix[rhsMatIndex];
 	}
-	*/
-
-
-	//Calculate the lhsMatrix and rhsMatrix indices to get elements from
-	int lhsMatIndex = localIndexRowCalc + (resultMatrixGridBlockRowIdx * resultBlockWidth);
-	int rhsMatIndex = localIndexColCalc + (resultMatrixGridBlockColIdx * resultBlockWidth);
-
-	//write output to the result matrix
-	resultMatrix[resultMatrixIdx] += lhsMatrix[lhsMatIndex] * rhsMatrix[rhsMatIndex];
 }
 
 
 __global__ void upperTrianglarOuterProductSum(float* resultMatrix, float* lhsMatrix, float* rhsMatrix, int resultBlockWidth, int resultGridWidth, int resultMatrixGridBlockRowIdx, int resultMatrixGridBlockColIdx)
 {
 	//Absolute threadIdx within a block of the results grid
-	const int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
+	//const int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
 
-	//check bounds
-	if(absoluteThreadIdx >=  (resultBlockWidth * (resultBlockWidth + 1)) / 2)
-		return;
+	int threadsNeeded = (resultBlockWidth * (resultBlockWidth + 1)) / 2;
 
-	//Find the corresponding upperTriangluar indices
-	int triRowIndex = upperTrianglarRowIndex(absoluteThreadIdx, resultBlockWidth);
-	int triColumnIndex = upperTriangluarColumnIndexWithRow(absoluteThreadIdx, resultBlockWidth, triRowIndex);
-
-	int totalColumnSize =  resultBlockWidth * resultGridWidth; ////BEWARE OF THIS CONSTANT //BLOCKSIZE * 4
-
-	//Compute the position in the resultMatrix to store the result
-	int resultRow = (resultMatrixGridBlockRowIdx * resultBlockWidth) + triRowIndex;
-	int resultCol = (resultMatrixGridBlockColIdx * resultBlockWidth) + triColumnIndex;
-
-	int lowerTrianglarLength = (resultRow * (resultRow + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
-	int resultMatrixIdx = (resultRow * totalColumnSize + resultCol) - lowerTrianglarLength;
-
-
-
-	//Calculate the lhsMatrix and rhsMatrix indices to get elements from
-	int lhsMatIndex = triRowIndex + (resultMatrixGridBlockRowIdx * resultBlockWidth);
-	int rhsMatIndex = triColumnIndex + (resultMatrixGridBlockColIdx * resultBlockWidth);
-
-	/*
-	if(absoluteThreadIdx == 2)
+	for(int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x; absoluteThreadIdx < threadsNeeded; absoluteThreadIdx += gridDim.x * blockDim.x)
 	{
-		printf("triRow: %d\n", triRowIndex);
-		printf("triCol: %d\n", resultCol);
-		printf("resultMatrixIdx: %d\n", resultMatrixIdx);
-		printf("lhsMatIndex: %d\n", lhsMatIndex);
-		printf("rhsMatIndex: %d\n", rhsMatIndex);
-	}
-	*/
+		//check bounds
+		//if(absoluteThreadIdx >=  (resultBlockWidth * (resultBlockWidth + 1)) / 2)
+			//return;
 
-	resultMatrix[resultMatrixIdx] += lhsMatrix[lhsMatIndex] * rhsMatrix[rhsMatIndex];
+		//Find the corresponding upperTriangluar indices
+		int triRowIndex = upperTrianglarRowIndex(absoluteThreadIdx, resultBlockWidth);
+		int triColumnIndex = upperTriangluarColumnIndexWithRow(absoluteThreadIdx, resultBlockWidth, triRowIndex);
+
+		int totalColumnSize =  resultBlockWidth * resultGridWidth; ////BEWARE OF THIS CONSTANT //BLOCKSIZE * 4
+
+		//Compute the position in the resultMatrix to store the result
+		int resultRow = (resultMatrixGridBlockRowIdx * resultBlockWidth) + triRowIndex;
+		int resultCol = (resultMatrixGridBlockColIdx * resultBlockWidth) + triColumnIndex;
+
+		int lowerTrianglarLength = (resultRow * (resultRow + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
+		int resultMatrixIdx = (resultRow * totalColumnSize + resultCol) - lowerTrianglarLength;
+
+
+		//Calculate the lhsMatrix and rhsMatrix indices to get elements from
+		int lhsMatIndex = triRowIndex + (resultMatrixGridBlockRowIdx * resultBlockWidth);
+		int rhsMatIndex = triColumnIndex + (resultMatrixGridBlockColIdx * resultBlockWidth);
+
+		/*
+		if(absoluteThreadIdx == 2)
+		{
+			printf("triRow: %d\n", triRowIndex);
+			printf("triCol: %d\n", resultCol);
+			printf("resultMatrixIdx: %d\n", resultMatrixIdx);
+			printf("lhsMatIndex: %d\n", lhsMatIndex);
+			printf("rhsMatIndex: %d\n", rhsMatIndex);
+		}
+		*/
+
+		resultMatrix[resultMatrixIdx] += lhsMatrix[lhsMatIndex] * rhsMatrix[rhsMatIndex];
+	}
 }
 
 
@@ -244,9 +251,9 @@ void testOuterProductRoutine4x4()
 	//make the kernel calls to compute the result matrix
 
 	//top left hand corner
-	upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 2, 2, 0, 0);
+	//upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 2, 2, 0, 0);
 	wholeOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 2, 2, 0, 1);
-	upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 2, 2, 1, 1);
+	//upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 2, 2, 1, 1);
 
 
 	cudaError_t error2 = cudaDeviceSynchronize();
@@ -337,7 +344,8 @@ void testOuterProductRoutine6x6()
 
 void testOuterProductRoutine9x9()
 {
-	int matLength = 9;
+	int resultGridDim = 9; //assumes its square
+	//int gridDim = 3;
 
 	float* h_lhsMatrix;
 	float* h_rhsMatrix;
@@ -346,26 +354,26 @@ void testOuterProductRoutine9x9()
 	float* d_lhsMatrix;
 	float* d_rhsMatrix;
 
-	h_lhsMatrix = (float*)malloc(sizeof(float) * matLength);
-	h_rhsMatrix = (float*)malloc(sizeof(float) * matLength);
+	h_lhsMatrix = (float*)malloc(sizeof(float) * resultGridDim);
+	h_rhsMatrix = (float*)malloc(sizeof(float) * resultGridDim);
 
-	int resultLength = (matLength * (matLength + 1)) / 2;
+	int resultLength = (resultGridDim * (resultGridDim + 1)) / 2;
 
 	cudaMalloc(&d_resultMatrix, sizeof(float) * resultLength);
-	cudaMalloc(&d_lhsMatrix, sizeof(float) * matLength);
-	cudaMalloc(&d_rhsMatrix, sizeof(float) * matLength);
+	cudaMalloc(&d_lhsMatrix, sizeof(float) * resultGridDim);
+	cudaMalloc(&d_rhsMatrix, sizeof(float) * resultGridDim);
 
 	cudaMemset(d_resultMatrix, 0, sizeof(float) * resultLength);
 
 
-	for(int i = 0; i < matLength; ++i)
+	for(int i = 0; i < resultGridDim; ++i)
 	{
 		h_lhsMatrix[i] = i + 1;
 		h_rhsMatrix[i] = i + 1;
 	}
 
-	cudaMemcpy(d_lhsMatrix, h_lhsMatrix, sizeof(float) * matLength, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_rhsMatrix, h_rhsMatrix, sizeof(float) * matLength, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_lhsMatrix, h_lhsMatrix, sizeof(float) * resultGridDim, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_rhsMatrix, h_rhsMatrix, sizeof(float) * resultGridDim, cudaMemcpyHostToDevice);
 
 	//make the kernel calls to compute the result matrix
 
@@ -395,7 +403,7 @@ void testOuterProductRoutine9x9()
 		printf("%s\n", cudaGetErrorString(error2));
 	}
 
-	copyAndPrint(d_resultMatrix, resultLength, matLength);
+	copyAndPrint(d_resultMatrix, resultLength, resultGridDim);
 
 
 
@@ -403,6 +411,8 @@ void testOuterProductRoutine9x9()
 	cudaFree(d_lhsMatrix);
 	cudaFree(d_rhsMatrix);
 }
+
+
 
 // ------------------------------------------------------
 
@@ -414,31 +424,89 @@ void testOuterProductRoutine9x9()
 
 //This function invokes a number of cuda kernel calls
 
-//resultGridXDim / resultBlockXDim must equal an even number
 
-void computeUpperTriangularOuterProduct(float* d_resultMatrix, float* d_lhsVector, int vectorLength, int resultBlockXDim, int resultGridXDim)
+//vectorLength == binSize of the stokes vectors
+void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixLength, float* d_vector, int vectorLength, int resultGridDim)
 {
 
-	cudaStream_t streams[4]; //Difficult to have more than 4 kernels active at once apparently
+	//calculate number of cuda blocks needed for each kernel
+	int cudaWholeOuterProductBlockNum = max(1,  min( (vectorLength * vectorLength) / THREADSIZE, (1 << 16) - 1));
+	int cudaUpperTriOuterProductBlockNum = max(1,  min( ((vectorLength * (vectorLength + 1) / 2)) / THREADSIZE, (1 << 16) - 1));
 
-	//Compute the number of kernel calls needed
-	//Compute the number of 'result grid' rows
-
-	if(resultGridXDim % resultBlockXDim != 0)
+	/*
+	//for every 'block' in the result matrix
+	for(int i = 0; i < resultGridDim; ++i)
 	{
-		printf("ERROR IN computeUpperTriangularOuterProduct(): resultGridXDim / resultBlockXDim is not an even number!\n");
+		//call upper triangular outer product on along the diagonal
+		upperTrianglarOuterProductSum<<<cudaUpperTriOuterProductBlockNum, THREADSIZE>>>
+				(d_resultMatrix, d_vector, d_vector, vectorLength, resultGridDim, i, i );
+
+		//call the whole outer product kernel for the remaining blocks on this row
+		for(int j = i + 1; j < resultGridDim; ++j)
+		{
+			wholeOuterProductSum<<<cudaWholeOuterProductBlockNum, THREADSIZE>>>
+					(d_resultMatrix, d_vector, d_vector, vectorLength, resultGridDim, i, j);
+		}
+	}*/
+
+	//TODO: REMOVE THIS
+	wholeOuterProductSum<<<cudaWholeOuterProductBlockNum, THREADSIZE>>>
+						(d_resultMatrix, d_vector, d_vector, vectorLength, resultGridDim, 0, 1);
+
+
+	//check for errors
+	cudaError_t error2 = cudaDeviceSynchronize();
+
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
 		return;
 	}
 
-	//int resultGrid
+	//DEBUG - print results
+	copyAndPrint(d_resultMatrix, resultMatrixLength, resultGridDim * vectorLength);
 
-	//for()
 }
+
+int upperTriLength(int rowSize)
+{
+	return (rowSize * (rowSize + 1)) / 2;
+}
+
 
 int main()
 {
 	testOuterProductRoutine4x4();
-	testOuterProductRoutine6x6();
-	testOuterProductRoutine9x9();
+	//testOuterProductRoutine6x6();
+	//testOuterProductRoutine9x9();
+	//testOuterProductRoutine512x512();
+
+	int resultGridDim = 1;
+	int vectorLength = 4;
+	int resultMatrixLength = upperTriLength(vectorLength * resultGridDim);
+
+	float* h_vector;
+
+	float* d_resultMatrix;
+	float* d_vector;
+
+	h_vector = (float*)malloc(sizeof(float) * vectorLength);
+
+
+	cudaMalloc(&d_resultMatrix, sizeof(float) * resultMatrixLength);
+	cudaMalloc(&d_vector, sizeof(float) * vectorLength);
+
+	cudaMemset(d_resultMatrix, 0, sizeof(float) * resultMatrixLength);
+
+
+	for(int i = 0; i < vectorLength; ++i)
+	{
+		h_vector[i] = i + 1;
+	}
+
+	cudaMemcpy(d_vector, h_vector, sizeof(float) * vectorLength, cudaMemcpyHostToDevice);
+
+	computeUpperTriangularOuterProduct(d_resultMatrix, resultMatrixLength, d_vector, vectorLength, resultGridDim);
+
 	return 0;
 }
