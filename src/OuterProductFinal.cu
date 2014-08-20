@@ -438,5 +438,7 @@ int main()
 
 	runBenchmark(3000);
 
+	//arbTest(1024, 4);
+
 	return 0;
 }
