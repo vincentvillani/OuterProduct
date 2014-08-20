@@ -11,9 +11,11 @@
 #include <stdlib.h>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <time.h>
+
 //#define MATRIXLENGTH 2 //Matrix width within a 'result matrix grid block'
 //#define BINSIZE 6
-#define THREADSIZE 256
+//#define THREADSIZE 256
 
 
 // ---------------- DEVICE FUNCTIONS / KERNELS ----------------------------------
@@ -253,7 +255,7 @@ void copyAndPrint(float* deviceData, int arrayLength, int rowLength)
 //powerOfTwoVectorLength has to be a power of two
 //evenResultGridDim has to be an even number
 //TODO: TO MANY RESTRICTIONS? WILL PROBABLY STILL WORK IF powerOfTwoVectorLength / evenResultGridDim == an even number
-void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixLength, float* d_vector, int powerOfTwoVectorLength, int evenResultGridDim)
+void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixLength, float* d_vector, int powerOfTwoVectorLength, int evenResultGridDim, int threadNum)
 {
 	if(evenResultGridDim % 2 != 0)
 	{
@@ -262,21 +264,21 @@ void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixL
 	}
 
 	//calculate number of cuda blocks needed for each kernel
-	int cudaWholeOuterProductBlockNum = max(1,  min( (powerOfTwoVectorLength * powerOfTwoVectorLength) / THREADSIZE, (1 << 16) - 1));
-	int cudaUpperTriOuterProductBlockNum = max(1,  min( ((powerOfTwoVectorLength * (powerOfTwoVectorLength + 1) / 2)) / THREADSIZE, (1 << 16) - 1));
+	int cudaWholeOuterProductBlockNum = max(1,  min( (powerOfTwoVectorLength * powerOfTwoVectorLength) / threadNum, (1 << 16) - 1));
+	int cudaUpperTriOuterProductBlockNum = max(1,  min( ((powerOfTwoVectorLength * (powerOfTwoVectorLength + 1) / 2)) / threadNum, (1 << 16) - 1));
 
 
 	//for every 'block' in the result matrix
 	for(int i = 0; i < evenResultGridDim; ++i)
 	{
 		//call upper triangular outer product on along the diagonal
-		upperTrianglarOuterProductSum<<<cudaUpperTriOuterProductBlockNum, THREADSIZE>>>
+		upperTrianglarOuterProductSum<<<cudaUpperTriOuterProductBlockNum, threadNum>>>
 				(d_resultMatrix, d_vector, d_vector, powerOfTwoVectorLength, evenResultGridDim, i);
 
 		//call the whole outer product kernel for the remaining blocks on this row
 		for(int j = i + 1; j < evenResultGridDim; ++j)
 		{
-			wholeOuterProductSum<<<cudaWholeOuterProductBlockNum, THREADSIZE>>>
+			wholeOuterProductSum<<<cudaWholeOuterProductBlockNum, threadNum>>>
 					(d_resultMatrix, d_vector, d_vector, powerOfTwoVectorLength, evenResultGridDim, i, j);
 		}
 	}
@@ -292,7 +294,7 @@ void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixL
 	}
 
 	//DEBUG - print results
-	copyAndPrint(d_resultMatrix, resultMatrixLength, evenResultGridDim * powerOfTwoVectorLength);
+	//copyAndPrint(d_resultMatrix, resultMatrixLength, evenResultGridDim * powerOfTwoVectorLength);
 
 }
 
@@ -327,7 +329,7 @@ void arbTest(int vectorLength, int resultGridDim)
 
 	cudaMemcpy(d_vector, h_vector, sizeof(float) * vectorLength, cudaMemcpyHostToDevice);
 
-	computeUpperTriangularOuterProduct(d_resultMatrix, resultMatrixLength, d_vector, vectorLength, resultGridDim);
+	computeUpperTriangularOuterProduct(d_resultMatrix, resultMatrixLength, d_vector, vectorLength, resultGridDim, 256);
 
 	free(h_vector);
 
@@ -337,6 +339,92 @@ void arbTest(int vectorLength, int resultGridDim)
 }
 
 
+void setCPUTimer(clock_t* timer)
+{
+    *timer = clock();
+}
+
+
+double calcCPUTime(clock_t startTime, clock_t endTime)
+{
+    return (double)(endTime - startTime) / CLOCKS_PER_SEC;
+}
+
+
+
+void runBenchmark()
+{
+	float* h_vector;
+
+	float* d_resultMatrix;
+	float* d_vector;
+
+
+	clock_t timers[2]; //start and end timers for all 6 bin sizes
+	double timingResult; //total elapsed time for each bin size benchmark
+
+	FILE* file = fopen("/mnt/home/vvillani/deviceOuterProductFinal/BenchmarkResults.txt", "w");
+
+	int resultGridDim = 4;
+	int binSize;
+	int threadSize;
+	const int iterations = 5000;
+	int resultMatrixLength;
+
+	fprintf(file, "ITERATIONS: %d\n\n", iterations);
+
+	//for each bin size - 128 to 4096
+	for(int i = 0; i < 6; ++i)
+	{
+		binSize = 1 << (7 + i);
+
+		fprintf(file, "\n\n\nBINSIZE: %d\n\n", binSize);
+
+		h_vector = (float*)malloc(sizeof(float) * binSize);
+
+		resultMatrixLength = upperTriLength(binSize * resultGridDim);
+		cudaMalloc(&d_resultMatrix, sizeof(float) * resultMatrixLength);
+		cudaMalloc(&d_vector, sizeof(float) * binSize);
+
+		cudaMemset(d_resultMatrix, 0, sizeof(float) * resultMatrixLength);
+
+		for(int k = 0; k < binSize; ++k)
+			h_vector[k] = k + 1;
+
+		cudaMemcpy(d_vector, h_vector, sizeof(float) * binSize, cudaMemcpyHostToDevice);
+
+		//for each threadSize - 64 to 1024
+		for(int j = 0; j < 5; ++j)
+		{
+			threadSize = 1 << (6 + j);
+
+			setCPUTimer(&timers[0]); //start time
+
+			//perform the benchmark iteration times
+			for(int z = 0; z < iterations; ++z)
+			{
+				computeUpperTriangularOuterProduct(d_resultMatrix, resultMatrixLength, d_vector, binSize, resultGridDim, threadSize);
+			}
+
+			setCPUTimer(&timers[1]); //end time
+			calcCPUTime(timers[0], timers[1]); //result
+
+			//write the result to the file
+			fprintf(file, "THREADSIZE: %f\n", timingResult);
+
+		}
+
+
+
+		free(h_vector);
+		cudaFree(d_resultMatrix);
+		cudaFree(d_vector);
+
+		printf("Finished iteration %d\n", i);
+	}
+
+	fclose(file);
+}
 
 
 int main()
@@ -347,7 +435,7 @@ int main()
 
 	//arbTest(512, 4);
 
-
+	runBenchmark();
 
 	return 0;
 }
