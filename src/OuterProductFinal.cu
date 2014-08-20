@@ -16,6 +16,8 @@
 #define THREADSIZE 256
 
 
+// ---------------- DEVICE FUNCTIONS / KERNELS ----------------------------------
+
 //Assumes square matrices
 __device__ unsigned int upperTriangularLength(unsigned int numRows)
 {
@@ -162,6 +164,10 @@ unsigned int column_index( unsigned int i, unsigned int M ){
 }
 */
 
+// ------------------------------------------------------------
+
+
+// -------------- DEBUG ---------------------------------------
 
 template<typename T>
 void printResultUpperTriangular(T* result, int rowLength)
@@ -329,9 +335,110 @@ void testOuterProductRoutine6x6()
 
 
 
+void testOuterProductRoutine9x9()
+{
+	int matLength = 9;
+
+	float* h_lhsMatrix;
+	float* h_rhsMatrix;
+
+	float* d_resultMatrix;
+	float* d_lhsMatrix;
+	float* d_rhsMatrix;
+
+	h_lhsMatrix = (float*)malloc(sizeof(float) * matLength);
+	h_rhsMatrix = (float*)malloc(sizeof(float) * matLength);
+
+	int resultLength = (matLength * (matLength + 1)) / 2;
+
+	cudaMalloc(&d_resultMatrix, sizeof(float) * resultLength);
+	cudaMalloc(&d_lhsMatrix, sizeof(float) * matLength);
+	cudaMalloc(&d_rhsMatrix, sizeof(float) * matLength);
+
+	cudaMemset(d_resultMatrix, 0, sizeof(float) * resultLength);
+
+
+	for(int i = 0; i < matLength; ++i)
+	{
+		h_lhsMatrix[i] = i + 1;
+		h_rhsMatrix[i] = i + 1;
+	}
+
+	cudaMemcpy(d_lhsMatrix, h_lhsMatrix, sizeof(float) * matLength, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_rhsMatrix, h_rhsMatrix, sizeof(float) * matLength, cudaMemcpyHostToDevice);
+
+	//make the kernel calls to compute the result matrix
+
+	//Top left
+	upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 3, 3, 0, 0);
+
+	//Top center
+	wholeOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 3, 3, 0, 1);
+
+	//Top right
+	wholeOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 3, 3, 0, 2);
+
+	//Middle Center
+	upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 3, 3, 1, 1);
+
+	//Middle Right
+	wholeOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 3, 3, 1, 2);
+
+	//Bottom right
+	upperTrianglarOuterProductSum<<<1, THREADSIZE>>>(d_resultMatrix, d_lhsMatrix, d_rhsMatrix, 3, 3, 2, 2);
+
+
+	cudaError_t error2 = cudaDeviceSynchronize();
+
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
+	}
+
+	copyAndPrint(d_resultMatrix, resultLength, matLength);
+
+
+
+	cudaFree(d_resultMatrix);
+	cudaFree(d_lhsMatrix);
+	cudaFree(d_rhsMatrix);
+}
+
+// ------------------------------------------------------
+
+
+
+//Computes the upper triangular outer product of a vector with itself. Because the result matrix will be symmetrical along the
+//diagonal, you can save memory by only storing the upper triangular portion of the result and reflecting it along the diagonal
+//to obtain the full matrix.
+
+//This function invokes a number of cuda kernel calls
+
+//resultGridXDim / resultBlockXDim must equal an even number
+
+void computeUpperTriangularOuterProduct(float* d_resultMatrix, float* d_lhsVector, int vectorLength, int resultBlockXDim, int resultGridXDim)
+{
+
+	cudaStream_t streams[4]; //Difficult to have more than 4 kernels active at once apparently
+
+	//Compute the number of kernel calls needed
+	//Compute the number of 'result grid' rows
+
+	if(resultGridXDim % resultBlockXDim != 0)
+	{
+		printf("ERROR IN computeUpperTriangularOuterProduct(): resultGridXDim / resultBlockXDim is not an even number!\n");
+		return;
+	}
+
+	//int resultGrid
+
+	//for()
+}
+
 int main()
 {
 	testOuterProductRoutine4x4();
 	testOuterProductRoutine6x6();
+	testOuterProductRoutine9x9();
 	return 0;
 }
