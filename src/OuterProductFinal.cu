@@ -284,7 +284,7 @@ void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixL
 		}
 	}
 
-
+	/*
 	//check for errors
 	cudaError_t error2 = cudaDeviceSynchronize();
 
@@ -293,6 +293,7 @@ void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixL
 		printf("%s\n", cudaGetErrorString(error2));
 		return;
 	}
+	*/
 
 	//DEBUG - print results
 	//copyAndPrint(d_resultMatrix, resultMatrixLength, evenResultGridDim * powerOfTwoVectorLength);
@@ -407,6 +408,7 @@ void runBenchmark(int iterations)
 				computeUpperTriangularOuterProduct(d_resultMatrix, resultMatrixLength, d_vector, d_vector, binSize, resultGridDim, threadSize);
 			}
 
+			cudaDeviceSynchronize(); //wait till all kernels are finished
 			setCPUTimer(&timers[1]); //end time
 			timingResult = calcCPUTime(timers[0], timers[1]); //result
 
