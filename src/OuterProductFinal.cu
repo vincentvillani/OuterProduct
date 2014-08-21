@@ -143,7 +143,7 @@ __global__ void upperTrianglarOuterProductSum(float* resultMatrix, float* lhsMat
 
 
 
-__global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, float* lhsMatrix, float* rhsMatrix, int lhsMatrixLength)
+__global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, float* lhsMatrix, int lhsMatrixLength)
 {
 
 	int operationsNeeded = (lhsMatrixLength * (lhsMatrixLength + 1)) / 2;
@@ -158,7 +158,7 @@ __global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, f
 		int lowerTrianglarLength = (triRowIndex * (triRowIndex + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
 		int resultMatrixIdx = (triRowIndex * lhsMatrixLength + triColumnIndex) - lowerTrianglarLength;
 
-		resultMatrix[resultMatrixIdx] += lhsMatrix[triRowIndex] * rhsMatrix[triColumnIndex];
+		resultMatrix[resultMatrixIdx] += lhsMatrix[triRowIndex] * lhsMatrix[triColumnIndex];
 
 		/*
 		if(absoluteThreadIdx == 2)
@@ -423,7 +423,7 @@ void computeUpperTriangularOuterProductOneBigKernel(float* d_resultMatrix, int r
 
 	//call upper triangular outer product on along the diagonal
 	upperTrianglarOuterProductSumOneBigKernel<<<cudaUpperTriOuterProductBlockNum, threadNum>>>
-			(d_resultMatrix, d_lhsVector, d_rhsVector, powerOfTwoVectorLength);
+			(d_resultMatrix, d_lhsVector, powerOfTwoVectorLength);
 
 
 	/*
