@@ -415,7 +415,7 @@ void computeUpperTriangularOuterProductStream(float* d_resultMatrix, int resultM
 //evenResultGridDim has to be an even number
 //d_lhsVectorLength == d_rhsVectorLength == powerOfTwoVectorLength
 //TODO: TO MANY RESTRICTIONS? WILL PROBABLY STILL WORK IF powerOfTwoVectorLength / evenResultGridDim == an even number
-void computeUpperTriangularOuterProductOneBigKernel(float* d_resultMatrix, int resultMatrixLength, float* d_lhsVector, float* d_rhsVector, int powerOfTwoVectorLength, int threadNum)
+void computeUpperTriangularOuterProductOneBigKernel(float*  d_resultMatrix, int resultMatrixLength, float*  d_lhsVector, int powerOfTwoVectorLength, int threadNum)
 {
 	//calculate number of cuda blocks needed for each kernel
 	int cudaUpperTriOuterProductBlockNum = max(1,  min( upperTriangularLength(powerOfTwoVectorLength) / threadNum, (1 << 16) - 1));
@@ -511,7 +511,7 @@ void arbTestOneBigKernel(int vectorLength)
 
 	cudaMemcpy(d_vector, h_vector, sizeof(float) * vectorLength, cudaMemcpyHostToDevice);
 
-	computeUpperTriangularOuterProductOneBigKernel(d_resultMatrix, resultMatrixLength, d_vector, d_vector, vectorLength, 256);
+	computeUpperTriangularOuterProductOneBigKernel(d_resultMatrix, resultMatrixLength, d_vector, vectorLength, 256);
 
 	free(h_vector);
 
@@ -616,8 +616,8 @@ void runBenchmarkOneBigKernel(int iterations)
 {
 	float* h_vector;
 
-	float* d_resultMatrix;
-	float* d_vector;
+	float*  d_resultMatrix;
+	float*  d_vector;
 
 
 	clock_t timers[2]; //start and end timers for all 6 bin sizes
@@ -663,7 +663,7 @@ void runBenchmarkOneBigKernel(int iterations)
 			//perform the benchmark iteration times
 			for(int z = 0; z < iterations; ++z)
 			{
-				computeUpperTriangularOuterProductOneBigKernel(d_resultMatrix, resultMatrixLength, d_vector, d_vector, binSize, threadSize);
+				computeUpperTriangularOuterProductOneBigKernel(d_resultMatrix, resultMatrixLength, d_vector, binSize, threadSize);
 			}
 
 			cudaDeviceSynchronize(); //wait till all kernels are finished
