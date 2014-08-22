@@ -9,6 +9,7 @@
 #define KERNELS_H_
 
 #include <cuda_runtime.h>
+#include <stdio.h>
 
 __device__ __host__ unsigned int upperTriangularLength(unsigned int numRows);
 
@@ -36,6 +37,6 @@ __global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, f
 
 __device__ int  upperTrianglarRowIndexIntrinsic(int idx, int matDim);
 
-__global__ void squareRootIntrinsic(const int* const indexes, int* results, const int nCol, const int resultSize);
+__global__ void squareRootIntrinsic(int* results, const int nCol, const int resultSize);
 
 #endif /* KERNELS_H_ */

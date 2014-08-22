@@ -569,15 +569,14 @@ void runBenchmarkStreams(int iterations)
 int  upperTrianglarRowIndexIntrinsicHost(int idx, int matDim)
 {
 	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
-	int k = floorf( (sqrtf(8 * temp + 1) - 1) / 2);
+	int k = floor( (sqrt(8 * temp + 1) - 1) / 2);
+
 	return matDim - 1 - k;
 }
 
 
 void testSqrt()
 {
-	int* h_indexes;
-	int* d_indexes;
 
 	int* h_results;
 	int* h_gpuResults;
@@ -588,19 +587,33 @@ void testSqrt()
 	int num = upperTriangularLength(nCol);
 
 
-	h_indexes = (int*)malloc(sizeof(int) * num);
+	printf("NUM: %d\n", num);
+
 	h_results = (int*)malloc(sizeof(int) * num);
 	h_gpuResults = (int*)malloc(sizeof(int) * num);
 
-	cudaMalloc(&d_indexes, sizeof(int) * num);
+
 	cudaMalloc(&d_results, sizeof(int) * num);
+	cudaMemset(d_results, 0, sizeof(int) * num);
 
-	for(int i = 0; i < num; ++i)
-		h_indexes[i] = i;
+	//check for errors
+	cudaError_t error2 = cudaDeviceSynchronize();
 
-	cudaMemcpy(d_indexes, h_indexes, sizeof(int) * num, cudaMemcpyHostToDevice);
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
+		return;
+	}
 
-	squareRootIntrinsic<<< ceilf( num / 256), 256>>>(d_indexes, d_results, nCol, num);
+
+	squareRootIntrinsic<<< min((int)ceilf( num / 256), (1 << 16) - 1), 256>>>( d_results, nCol, num);
+
+
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
+		return;
+	}
 
 	for(int i = 0; i < num; ++i)
 		h_results[i] = upperTrianglarRowIndexIntrinsicHost(i, nCol);
@@ -609,21 +622,22 @@ void testSqrt()
 
 	//compare results
 
+
 	for(int i = 0; i < num; ++i)
 	{
 		if(h_results[i] != h_gpuResults[i])
 		{
-			printf("ERORR: CPU %d, GPU %d\n", h_results[i], h_gpuResults[i]);
+			printf("ERORR - Index: %d, CPU: %d, GPU: %d\n", i, h_results[i], h_gpuResults[i]);
+
 		}
 	}
 
+
 	printf("Test complete!\n");
 
-	free(h_indexes);
 	free(h_results);
 	free(h_gpuResults);
 
-	cudaFree(d_indexes);
 	cudaFree(d_results);
 
 }

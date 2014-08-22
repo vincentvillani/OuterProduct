@@ -39,7 +39,7 @@ __device__ __host__ unsigned int upperTriangularLength(unsigned int numRows)
 __device__ int  upperTrianglarRowIndex(int idx, int matDim)
 {
 	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
-	int k = floorf( (sqrtf(8 * temp + 1) - 1) / 2);
+	int k = floor( (__dsqrt_rz((double)8 * temp + 1) - 1) / 2);
 	return matDim - 1 - k;
 }
 
@@ -187,18 +187,24 @@ __global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, f
 __device__ int  upperTrianglarRowIndexIntrinsic(int idx, int matDim)
 {
 	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
-	int k = floorf( (__fsqrt_rd(8 * temp + 1) - 1) / 2);
-	return matDim - 1 - k;
+	int k = floorf( ( sqrtf( 8 * temp + 1) - 1) / 2);
+	return matDim - 1 - k;;
 }
 
-__global__ void squareRootIntrinsic(const int* const indexes, int* results, const int nCol, const int resultSize)
+__global__ void squareRootIntrinsic(int* results, const int nCol, const int resultSize)
 {
-	const int absThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
 
-	if(absThreadIdx >= resultSize)
-		return;
+	for(int absThreadIdx = blockDim.x * blockIdx.x + threadIdx.x; absThreadIdx < resultSize; absThreadIdx += blockDim.x * gridDim.x)
+	{
+		results[absThreadIdx] = upperTrianglarRowIndexIntrinsic(absThreadIdx, nCol);
+	}
 
-	results[absThreadIdx] = upperTrianglarRowIndexIntrinsic(absThreadIdx, nCol);
+
+
+
+
+	//printf("%d\n", results[absThreadIdx]);
+
 }
 
 
