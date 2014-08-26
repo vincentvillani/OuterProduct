@@ -25,7 +25,9 @@ int main()
 	//runBenchmarkOneBigKernel(3000);
 	//arbTestOneBigKernel(8);
 
-	testSqrt();
+	//runBenchmarkSmartBruteForce(3000);
+	//testSqrt();
+	checkCorrectness();
 
 	//cudaDeviceReset();
 

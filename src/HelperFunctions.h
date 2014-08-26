@@ -25,6 +25,8 @@ void computeUpperTriangularOuterProduct(float* d_resultMatrix, int resultMatrixL
 void computeUpperTriangularOuterProductOneBigKernel(float*  d_resultMatrix, int resultMatrixLength, float*  d_lhsVector,
 		int powerOfTwoVectorLength, int threadNum);
 
+void computeOuterProductSmartBruteForce(float* resultMatrix ,float* vec, int vecNCol, int blockDim);
+
 
 void arbTest(int vectorLength, int resultGridDim);
 
@@ -42,10 +44,12 @@ double calcCPUTime(clock_t startTime, clock_t endTime);
 void runBenchmark(int iterations);
 void runBenchmarkOneBigKernel(int iterations);
 void runBenchmarkStreams(int iterations);
+void runBenchmarkSmartBruteForce(int iterations);
 
 
 int  upperTrianglarRowIndexIntrinsicHost(int idx, int matDim);
 void testSqrt();
+void checkCorrectness();
 
 
 

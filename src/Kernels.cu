@@ -36,17 +36,17 @@ __device__ __host__ unsigned int upperTriangularLength(unsigned int numRows)
 
 
 //Converts normal matrix index to an upper trianglar matrix ROW INDEX
-__device__ int  upperTrianglarRowIndex(int idx, int matDim)
+__host__ __device__  int  upperTrianglarRowIndex(int idx, int matDim)
 {
 	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
-	int k = floor( (__dsqrt_rz((double)8 * temp + 1) - 1) / 2);
+	int k = floor( (sqrt((double)8 * temp + 1) - 1) / 2);
 	return matDim - 1 - k;
 }
 
 
 
 //Converts normal matrix index to an upper trianglar matrix COLUMN INDEX
-__device__ int upperTriangluarColumnIndex(int idx, int matDim)
+__host__ __device__ int upperTriangluarColumnIndex(int idx, int matDim)
 {
 	int row = upperTrianglarRowIndex(idx, matDim);
 	return idx - matDim * row + row * (row + 1) / 2;
@@ -55,7 +55,7 @@ __device__ int upperTriangluarColumnIndex(int idx, int matDim)
 
 
 //Converts normal matrix index to an upper trianglar matrix COLUMN INDEX
-__device__ int upperTriangluarColumnIndexWithRow(int idx, int matDim, int rowIdx)
+__device__ __host__ int upperTriangluarColumnIndexWithRow(int idx, int matDim, int rowIdx)
 {
 	return idx - matDim * rowIdx + rowIdx * (rowIdx + 1) / 2;
 }
@@ -159,7 +159,6 @@ __global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, f
 
 	for(int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x; absoluteThreadIdx < operationsNeeded; absoluteThreadIdx += gridDim.x * blockDim.x)
 	{
-
 		//Find the corresponding upperTriangluar indices
 		int triRowIndex = upperTrianglarRowIndex(absoluteThreadIdx, lhsMatrixLength);
 		int triColumnIndex = upperTriangluarColumnIndexWithRow(absoluteThreadIdx, lhsMatrixLength, triRowIndex);
@@ -169,27 +168,19 @@ __global__ void upperTrianglarOuterProductSumOneBigKernel(float* resultMatrix, f
 
 		resultMatrix[resultMatrixIdx] += lhsMatrix[triRowIndex] * lhsMatrix[triColumnIndex];
 
-		/*
-		if(absoluteThreadIdx == 2)
-		{
-			printf("triRow: %d\n", triRowIndex);
-			printf("triCol: %d\n", resultCol);
-			printf("resultMatrixIdx: %d\n", resultMatrixIdx);
-			printf("lhsMatIndex: %d\n", lhsMatIndex);
-			printf("rhsMatIndex: %d\n", rhsMatIndex);
-		}
-		*/
 	}
 }
 
 
-//Converts normal matrix index to an upper trianglar matrix ROW INDEX
+//Converts normal matrix index to an upper triangular matrix ROW INDEX
 __device__ int  upperTrianglarRowIndexIntrinsic(int idx, int matDim)
 {
 	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
-	int k = floorf( ( sqrtf( 8 * temp + 1) - 1) / 2);
-	return matDim - 1 - k;;
+	int k = floor( ( __dsqrt_rz( (double)8 * temp + 1) - 1) / 2);
+	return matDim - 1 - k;
 }
+
+
 
 __global__ void squareRootIntrinsic(int* results, const int nCol, const int resultSize)
 {
@@ -198,18 +189,57 @@ __global__ void squareRootIntrinsic(int* results, const int nCol, const int resu
 	{
 		results[absThreadIdx] = upperTrianglarRowIndexIntrinsic(absThreadIdx, nCol);
 	}
-
-
-
-
-
 	//printf("%d\n", results[absThreadIdx]);
 
 }
 
 
+/*
+__global__ void outerProductSumBruteForce(float* resultMatrix, float* lhsMatrix, float* rhsMatrix, unsigned int lhsMatrixLength)
+{
+	//Make each thread do more work if there is any more work to be done
+	for(int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x; absoluteThreadIdx < lhsMatrixLength * lhsMatrixLength; absoluteThreadIdx += gridDim.x * blockDim.x)
+	{
+		//Write back to global memory
+		resultMatrix[absoluteThreadIdx] += lhsMatrix[ absoluteThreadIdx / lhsMatrixLength ] * rhsMatrix[absoluteThreadIdx % lhsMatrixLength];
+	}
+}
+*/
 
 
+/*
+__global__ void computeUpperTriangularIndices(int* indices, int nCol, int totalElementsInFullArray)
+{
+	for(int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x; absoluteThreadIdx < totalElementsInFullArray; absoluteThreadIdx += gridDim.x * blockDim.x)
+	{
+		//Find the corresponding upperTriangluar indices
+		int triRowIndex = upperTrianglarRowIndex(absoluteThreadIdx, nCol);
+		int triColumnIndex = upperTriangluarColumnIndexWithRow(absoluteThreadIdx, nCol, triRowIndex);
+
+		int lowerTrianglarLength = (triRowIndex * (triRowIndex + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
+		int resultMatrixIdx = (triRowIndex * lhsMatrixLength + triColumnIndex) - lowerTrianglarLength;
+
+		indices[resultMatrixIdx] = resultMatrixIdx;
+	}
+}
+*/
+
+
+__global__ void outerProductSmartBruteForce(float* resultMatrix, float* vec, int vectorLength)
+{
+	int col = (blockIdx.x * blockDim.x) + threadIdx.x; //column
+	int row = (blockIdx.y * blockDim.y) + threadIdx.y; //row
+
+
+	//check bounds
+	if(row >= vectorLength || col >= vectorLength || row > col)
+		return;
+
+	int index = (row * vectorLength + col) - (row * (row + 1)) / 2;
+
+	resultMatrix[index] = vec[row] * vec[col];
+
+}
 
 
 

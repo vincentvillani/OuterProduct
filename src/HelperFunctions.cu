@@ -158,7 +158,7 @@ void computeUpperTriangularOuterProductOneBigKernel(float*  d_resultMatrix, int 
 			(d_resultMatrix, d_lhsVector, powerOfTwoVectorLength);
 
 
-	/*
+
 	//check for errors
 	cudaError_t error2 = cudaDeviceSynchronize();
 
@@ -168,13 +168,65 @@ void computeUpperTriangularOuterProductOneBigKernel(float*  d_resultMatrix, int 
 		return;
 	}
 
-*/
+
 	//DEBUG - print results
-	//copyAndPrint(d_resultMatrix, resultMatrixLength, powerOfTwoVectorLength);
+	copyAndPrint(d_resultMatrix, resultMatrixLength, powerOfTwoVectorLength);
 
 
 }
 
+
+
+void computeOuterProductSmartBruteForce(float* resultMatrix ,float* vec, int vecNCol, int blockDim)
+{
+	int resultMatrixLength = upperTriangularLength(vecNCol);
+
+	int blockDimX = blockDim;
+	int blockDimY = blockDim;
+	int gridDimX = ceil((float) vecNCol / blockDimX);
+	int gridDimY = ceil((float) vecNCol / blockDimY);
+	//int gridDim = ceil((float)vecNCol / blockDim);
+
+	dim3 grid = dim3(gridDimX, gridDimY);
+	dim3 block = dim3(blockDimX, blockDimY);
+
+	/*
+	printf("Launching kernel with parameters\nGrid(%d, %d), Block(%d, %d)\n"
+			"ThreadsPerBlock: %d, TotalThreads: %d\n",
+			grid.x, grid.y, block.x, block.y, blockDimX * blockDimY, (blockDimX * blockDimY) * gridDimX * gridDimY);
+	*/
+
+	/*
+	cudaError_t error = cudaDeviceSynchronize();
+	if(error != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error));
+		return;
+	}
+	*/
+
+
+
+	outerProductSmartBruteForce<<<grid, block>>>
+			(resultMatrix, vec, vecNCol);
+
+
+	/*
+	//check for errors
+	//cudaError_t error2 = cudaDeviceSynchronize();
+	cudaError_t error2 = cudaPeekAtLastError();
+
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
+		return;
+	}
+	*/
+
+	//DEBUG - print results
+	//copyAndPrint(resultMatrix, resultMatrixLength, vecNCol);
+
+}
 
 
 void arbTest(int vectorLength, int resultGridDim)
@@ -481,6 +533,85 @@ void runBenchmarkOneBigKernel(int iterations)
 	fclose(file);
 }
 
+
+
+void runBenchmarkSmartBruteForce(int iterations)
+{
+	float* h_vector;
+
+		float*  d_resultMatrix;
+		float*  d_vector;
+
+
+		clock_t timers[2]; //start and end timers for all 6 bin sizes
+		double timingResult; //total elapsed time for each bin size benchmark
+
+		FILE* file = fopen("/mnt/home/vvillani/deviceOuterProductFinal/BenchmarkResults.txt", "w");
+
+		int resultGridDim = 1;
+		int binSize;
+		int threadSize;
+		//const int iterations = 3000;
+		int resultMatrixLength;
+
+		fprintf(file, "ITERATIONS: %d\n\n", iterations);
+
+		//for each bin size - 128 to 4096
+		for(int i = 0; i < 6; ++i)
+		{
+			binSize = (1 << (7 + i)) * 4; //4 stokes vectors
+
+			fprintf(file, "\n\n\nBINSIZE: %d\n\n", binSize / 4);
+
+			h_vector = (float*)malloc(sizeof(float) * binSize);
+
+			resultMatrixLength = upperTriangularLength(binSize * resultGridDim);
+			cudaMalloc(&d_resultMatrix, sizeof(float) * resultMatrixLength);
+			cudaMalloc(&d_vector, sizeof(float) * binSize);
+
+			cudaMemset(d_resultMatrix, 0, sizeof(float) * resultMatrixLength);
+
+			for(int k = 0; k < binSize; ++k)
+				h_vector[k] = k + 1;
+
+			cudaMemcpy(d_vector, h_vector, sizeof(float) * binSize, cudaMemcpyHostToDevice);
+
+			//for each threadSize - 64 to 1024
+			for(int j = 0; j < 3; ++j)
+			{
+				threadSize = 1 << (3 + j);
+
+				setCPUTimer(&timers[0]); //start time
+
+				//perform the benchmark iteration times
+				for(int z = 0; z < iterations; ++z)
+				{
+					computeOuterProductSmartBruteForce(d_resultMatrix, d_vector, binSize, threadSize);
+				}
+
+				cudaDeviceSynchronize(); //wait till all kernels are finished
+				setCPUTimer(&timers[1]); //end time
+				timingResult = calcCPUTime(timers[0], timers[1]); //result
+
+				//write the result to the file
+				fprintf(file, "THREADSIZE %d: %f\n", threadSize, timingResult);
+
+			}
+
+
+
+			free(h_vector);
+			cudaFree(d_resultMatrix);
+			cudaFree(d_vector);
+
+			printf("Finished iteration %d\n", i);
+		}
+
+		fclose(file);
+}
+
+
+
 /*
 void runBenchmarkStreams(int iterations)
 {
@@ -566,12 +697,163 @@ void runBenchmarkStreams(int iterations)
 
 */
 
+float* computerOuterProductTriangularCPU(float* vec, int vecLength)
+{
+	float* resultMatrix = (float*)malloc(sizeof(float) * upperTriangularLength(vecLength));
+
+	for(int i = 0; i < upperTriangularLength(vecLength); ++i)
+	{
+		//Find the corresponding upperTriangluar indices
+		int triRowIndex = upperTrianglarRowIndex(i, vecLength);
+		int triColumnIndex = upperTriangluarColumnIndexWithRow(i, vecLength, triRowIndex);
+
+		int lowerTrianglarLength = (triRowIndex * (triRowIndex + 1)) / 2; //calculates the lowerTriangluarLength (or offset) at this point
+		int resultMatrixIdx = (triRowIndex * vecLength + triColumnIndex) - lowerTrianglarLength;
+
+		resultMatrix[resultMatrixIdx] += vec[triRowIndex] * vec[triColumnIndex];
+	}
+
+	return resultMatrix;
+
+}
+
+
+float* computerOuterProductCPU(float* vec, int vecLength)
+{
+	int resultLength = vecLength * vecLength;
+
+	//allocate memory for the result
+	float* result = (float*)malloc(sizeof(float) * resultLength);
+
+	for(int i = 0; i < resultLength; ++i)
+		result[i] = vec[ i / vecLength] * vec[i % vecLength];
+
+	return result;
+}
+
+
+float* extractUpperTriangularElements(float* vec, int vecLength)
+{
+	int triLength = upperTriangularLength(vecLength);
+	float* upperTriElements = (float*)malloc(sizeof(float) * triLength);
+
+	int colLength = vecLength;
+	int currentTriIndex = 0;
+    int indexOffset = 0;
+
+
+
+    //for each row
+    for(int i = 0; i < vecLength; ++i)
+    {
+        //for each column in a row
+        for(int j = 0; j < colLength; ++j)
+        {
+            upperTriElements[currentTriIndex] = vec[i * vecLength + j + indexOffset];
+            currentTriIndex++;
+        }
+
+        colLength--;
+        indexOffset += 1;
+    }
+
+	return upperTriElements;
+
+}
+
+
 int  upperTrianglarRowIndexIntrinsicHost(int idx, int matDim)
 {
 	int temp = matDim * (matDim + 1) / 2 - 1 - idx;
 	int k = floor( (sqrt(8 * temp + 1) - 1) / 2);
 
 	return matDim - 1 - k;
+}
+
+
+void checkCorrectness()
+{
+	float maxError = 0.005f;
+
+	int vectorSize = 8192 * 4;
+	float* h_vector = (float*)malloc(sizeof(float) * vectorSize);
+	float* resultBrute;
+
+	for(int i = 0; i < vectorSize; ++i)
+		h_vector[i] = i + 1;
+
+	//Do the brute force outer product on the CPU
+	resultBrute = computerOuterProductCPU(h_vector, vectorSize);
+
+	float* d_vector;
+	float* d_triangularResult;
+	float* h_triangularResult;
+
+
+
+	int upperTriangularLengthVal = upperTriangularLength(vectorSize);
+
+	h_triangularResult = (float*)malloc(sizeof(float) * upperTriangularLengthVal);
+
+	cudaError_t mallocErr;
+	cudaError_t mallocErr2;
+
+	mallocErr = cudaMalloc(&d_vector, sizeof(float) * vectorSize);
+	mallocErr2 = cudaMalloc(&d_triangularResult, sizeof(float) * upperTriangularLengthVal);
+
+	cudaMemset(d_triangularResult, 0, sizeof(float) * upperTriangularLengthVal);
+
+	cudaMemcpy(d_vector, h_vector, sizeof(float) * vectorSize, cudaMemcpyHostToDevice);
+
+	if(mallocErr != cudaSuccess || mallocErr2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(mallocErr));
+		printf("%s\n", cudaGetErrorString(mallocErr2));
+		return;
+	}
+
+
+	computeOuterProductSmartBruteForce(d_triangularResult, d_vector, vectorSize, 16);
+
+	//computeUpperTriangularOuterProductOneBigKernel
+	//(d_triangularResult, upperTriangularLengthVal, d_vector, vectorSize, 256);
+
+	//check for errors
+	cudaError_t error2 = cudaDeviceSynchronize();
+
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
+		return;
+	}
+
+	cudaMemcpy(h_triangularResult, d_triangularResult, sizeof(float) * upperTriangularLengthVal, cudaMemcpyDeviceToHost);
+
+
+	//Are they more or less the same results?
+
+
+	//get the upper tri results from the brute force result array
+	resultBrute = extractUpperTriangularElements(resultBrute, vectorSize);
+
+
+
+	for(int i = 0; i < upperTriangularLengthVal; ++i)
+	{
+		if( abs(resultBrute[i] - h_triangularResult[i]) > maxError)
+		{
+			printf("Error detected: index: %d, CPU: %f, GPU: %f\n", i, resultBrute[i], h_triangularResult[i]);
+		}
+
+	}
+
+
+	free(h_vector);
+	free(resultBrute);
+	free(h_triangularResult);
+
+	cudaFree(d_vector);
+	cudaFree(d_triangularResult);
 }
 
 
@@ -606,7 +888,7 @@ void testSqrt()
 	}
 
 
-	squareRootIntrinsic<<< min((int)ceilf( num / 256), (1 << 16) - 1), 256>>>( d_results, nCol, num);
+	squareRootIntrinsic<<< min((int)ceilf( num / 256), (1 << 16) - 1), 256>>> ( d_results, nCol, num);
 
 
 	if(error2 != cudaSuccess)
@@ -622,13 +904,11 @@ void testSqrt()
 
 	//compare results
 
-
 	for(int i = 0; i < num; ++i)
 	{
 		if(h_results[i] != h_gpuResults[i])
 		{
 			printf("ERORR - Index: %d, CPU: %d, GPU: %d\n", i, h_results[i], h_gpuResults[i]);
-
 		}
 	}
 
