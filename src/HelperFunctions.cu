@@ -229,6 +229,48 @@ void computeOuterProductSmartBruteForce(float* resultMatrix ,float* vec, int vec
 }
 
 
+void computeOuterProductSmartBruteForceLessThreads(float* resultMatrix ,float* vec, int vecNCol, int blockDim)
+{
+	int resultMatrixLength = upperTriangularLength(vecNCol);
+
+	int blockDimX = blockDim;
+	int blockDimY = blockDim;
+	int gridDimX = ceil((float) vecNCol / blockDimX);
+	int gridDimY = ceil((float) ((vecNCol / 2) + 1) / blockDimY);
+	//int gridDim = ceil((float)vecNCol / blockDim);
+
+	dim3 grid = dim3(gridDimX, gridDimY);
+	dim3 block = dim3(blockDimX, blockDimY);
+
+	/*
+	printf("Launching kernel with parameters\nGrid(%d, %d), Block(%d, %d)\n"
+			"ThreadsPerBlock: %d, TotalThreads: %d\n",
+			grid.x, grid.y, block.x, block.y, blockDimX * blockDimY, (blockDimX * blockDimY) * gridDimX * gridDimY);
+	*/
+
+
+	//Call kernel
+	outerProductSmartBruteForceLessThreads<<<grid, block>>>(resultMatrix, vec, vecNCol);
+
+
+	/*
+	//check for errors
+	//cudaError_t error2 = cudaDeviceSynchronize();
+	cudaError_t error2 = cudaPeekAtLastError();
+
+	if(error2 != cudaSuccess)
+	{
+		printf("%s\n", cudaGetErrorString(error2));
+		return;
+	}
+	*/
+
+	//DEBUG - print results
+	//copyAndPrint(resultMatrix, resultMatrixLength, vecNCol);
+
+}
+
+
 void arbTest(int vectorLength, int resultGridDim)
 {
 	int resultMatrixLength = upperTriangularLength(vectorLength * resultGridDim);
@@ -539,75 +581,152 @@ void runBenchmarkSmartBruteForce(int iterations)
 {
 	float* h_vector;
 
-		float*  d_resultMatrix;
-		float*  d_vector;
+	float*  d_resultMatrix;
+	float*  d_vector;
 
 
-		clock_t timers[2]; //start and end timers for all 6 bin sizes
-		double timingResult; //total elapsed time for each bin size benchmark
+	clock_t timers[2]; //start and end timers for all 6 bin sizes
+	double timingResult; //total elapsed time for each bin size benchmark
 
-		FILE* file = fopen("/mnt/home/vvillani/deviceOuterProductFinal/BenchmarkResults.txt", "w");
+	FILE* file = fopen("/mnt/home/vvillani/deviceOuterProductFinal/BenchmarkResults.txt", "w");
 
-		int resultGridDim = 1;
-		int binSize;
-		int threadSize;
-		//const int iterations = 3000;
-		int resultMatrixLength;
+	int resultGridDim = 1;
+	int binSize;
+	int threadSize;
+	//const int iterations = 3000;
+	int resultMatrixLength;
 
-		fprintf(file, "ITERATIONS: %d\n\n", iterations);
+	fprintf(file, "ITERATIONS: %d\n\n", iterations);
 
-		//for each bin size - 128 to 4096
-		for(int i = 0; i < 6; ++i)
+	//for each bin size - 128 to 4096
+	for(int i = 0; i < 6; ++i)
+	{
+		binSize = (1 << (7 + i)) * 4; //4 stokes vectors
+
+		fprintf(file, "\n\n\nBINSIZE: %d\n\n", binSize / 4);
+
+		h_vector = (float*)malloc(sizeof(float) * binSize);
+
+		resultMatrixLength = upperTriangularLength(binSize * resultGridDim);
+		cudaMalloc(&d_resultMatrix, sizeof(float) * resultMatrixLength);
+		cudaMalloc(&d_vector, sizeof(float) * binSize);
+
+		cudaMemset(d_resultMatrix, 0, sizeof(float) * resultMatrixLength);
+
+		for(int k = 0; k < binSize; ++k)
+			h_vector[k] = k + 1;
+
+		cudaMemcpy(d_vector, h_vector, sizeof(float) * binSize, cudaMemcpyHostToDevice);
+
+		//for each threadSize - 64 to 1024
+		for(int j = 0; j < 3; ++j)
 		{
-			binSize = (1 << (7 + i)) * 4; //4 stokes vectors
+			threadSize = 1 << (3 + j);
 
-			fprintf(file, "\n\n\nBINSIZE: %d\n\n", binSize / 4);
+			setCPUTimer(&timers[0]); //start time
 
-			h_vector = (float*)malloc(sizeof(float) * binSize);
-
-			resultMatrixLength = upperTriangularLength(binSize * resultGridDim);
-			cudaMalloc(&d_resultMatrix, sizeof(float) * resultMatrixLength);
-			cudaMalloc(&d_vector, sizeof(float) * binSize);
-
-			cudaMemset(d_resultMatrix, 0, sizeof(float) * resultMatrixLength);
-
-			for(int k = 0; k < binSize; ++k)
-				h_vector[k] = k + 1;
-
-			cudaMemcpy(d_vector, h_vector, sizeof(float) * binSize, cudaMemcpyHostToDevice);
-
-			//for each threadSize - 64 to 1024
-			for(int j = 0; j < 3; ++j)
+			//perform the benchmark iteration times
+			for(int z = 0; z < iterations; ++z)
 			{
-				threadSize = 1 << (3 + j);
-
-				setCPUTimer(&timers[0]); //start time
-
-				//perform the benchmark iteration times
-				for(int z = 0; z < iterations; ++z)
-				{
-					computeOuterProductSmartBruteForce(d_resultMatrix, d_vector, binSize, threadSize);
-				}
-
-				cudaDeviceSynchronize(); //wait till all kernels are finished
-				setCPUTimer(&timers[1]); //end time
-				timingResult = calcCPUTime(timers[0], timers[1]); //result
-
-				//write the result to the file
-				fprintf(file, "THREADSIZE %d: %f\n", threadSize, timingResult);
-
+				computeOuterProductSmartBruteForce(d_resultMatrix, d_vector, binSize, threadSize);
 			}
 
+			cudaDeviceSynchronize(); //wait till all kernels are finished
+			setCPUTimer(&timers[1]); //end time
+			timingResult = calcCPUTime(timers[0], timers[1]); //result
 
+			//write the result to the file
+			fprintf(file, "THREADSIZE %d: %f\n", threadSize * threadSize, timingResult);
 
-			free(h_vector);
-			cudaFree(d_resultMatrix);
-			cudaFree(d_vector);
-
-			printf("Finished iteration %d\n", i);
 		}
 
-		fclose(file);
+
+
+		free(h_vector);
+		cudaFree(d_resultMatrix);
+		cudaFree(d_vector);
+
+		printf("Finished iteration %d\n", i);
+	}
+
+	fclose(file);
+}
+
+
+
+void runBenchmarkSmartBruteForceLessThreads(int iterations)
+{
+	float* h_vector;
+
+	float*  d_resultMatrix;
+	float*  d_vector;
+
+
+	clock_t timers[2]; //start and end timers for all 6 bin sizes
+	double timingResult; //total elapsed time for each bin size benchmark
+
+	FILE* file = fopen("/mnt/home/vvillani/deviceOuterProductFinal/BenchmarkResults.txt", "w");
+
+	int resultGridDim = 1;
+	int binSize;
+	int threadSize;
+	//const int iterations = 3000;
+	int resultMatrixLength;
+
+	fprintf(file, "ITERATIONS: %d\n\n", iterations);
+
+	//for each bin size - 128 to 4096
+	for(int i = 0; i < 6; ++i)
+	{
+		binSize = (1 << (7 + i)) * 4; //4 stokes vectors
+
+		fprintf(file, "\n\n\nBINSIZE: %d\n\n", binSize / 4);
+
+		h_vector = (float*)malloc(sizeof(float) * binSize);
+
+		resultMatrixLength = upperTriangularLength(binSize * resultGridDim);
+		cudaMalloc(&d_resultMatrix, sizeof(float) * resultMatrixLength);
+		cudaMalloc(&d_vector, sizeof(float) * binSize);
+
+		cudaMemset(d_resultMatrix, 0, sizeof(float) * resultMatrixLength);
+
+		for(int k = 0; k < binSize; ++k)
+			h_vector[k] = k + 1;
+
+		cudaMemcpy(d_vector, h_vector, sizeof(float) * binSize, cudaMemcpyHostToDevice);
+
+		//for each threadSize - 64, 256, 1024
+		for(int j = 0; j < 3; ++j)
+		{
+			threadSize = 1 << (3 + j);
+
+			setCPUTimer(&timers[0]); //start time
+
+			//perform the benchmark iteration times
+			for(int z = 0; z < iterations; ++z)
+			{
+				computeOuterProductSmartBruteForceLessThreads(d_resultMatrix, d_vector, binSize, threadSize);
+			}
+
+			cudaDeviceSynchronize(); //wait till all kernels are finished
+			setCPUTimer(&timers[1]); //end time
+			timingResult = calcCPUTime(timers[0], timers[1]); //result
+
+			//write the result to the file
+			fprintf(file, "THREADSIZE %d: %f\n", threadSize * threadSize, timingResult);
+
+		}
+
+
+
+		free(h_vector);
+		cudaFree(d_resultMatrix);
+		cudaFree(d_vector);
+
+		printf("Finished iteration %d\n", i);
+	}
+
+	fclose(file);
 }
 
 
@@ -775,7 +894,7 @@ void checkCorrectness()
 {
 	float maxError = 0.005f;
 
-	int vectorSize = 8192 * 4;
+	int vectorSize = 4096 * 4;
 	float* h_vector = (float*)malloc(sizeof(float) * vectorSize);
 	float* resultBrute;
 
@@ -812,11 +931,15 @@ void checkCorrectness()
 		return;
 	}
 
+	// ------------- GPU ALGORITHM HERE --------------------
 
-	computeOuterProductSmartBruteForce(d_triangularResult, d_vector, vectorSize, 16);
+	//computeOuterProductSmartBruteForce(d_triangularResult, d_vector, vectorSize, 16);
+	computeOuterProductSmartBruteForceLessThreads(d_triangularResult, d_vector, vectorSize, 16);
 
 	//computeUpperTriangularOuterProductOneBigKernel
 	//(d_triangularResult, upperTriangularLengthVal, d_vector, vectorSize, 256);
+
+	// -----------------------------------------------------
 
 	//check for errors
 	cudaError_t error2 = cudaDeviceSynchronize();

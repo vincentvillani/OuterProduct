@@ -27,6 +27,8 @@ void computeUpperTriangularOuterProductOneBigKernel(float*  d_resultMatrix, int 
 
 void computeOuterProductSmartBruteForce(float* resultMatrix ,float* vec, int vecNCol, int blockDim);
 
+void computeOuterProductSmartBruteForceLessThreads(float* resultMatrix ,float* vec, int vecNCol, int blockDim);
+
 
 void arbTest(int vectorLength, int resultGridDim);
 
@@ -45,6 +47,7 @@ void runBenchmark(int iterations);
 void runBenchmarkOneBigKernel(int iterations);
 void runBenchmarkStreams(int iterations);
 void runBenchmarkSmartBruteForce(int iterations);
+void runBenchmarkSmartBruteForceLessThreads(int iterations);
 
 
 int  upperTrianglarRowIndexIntrinsicHost(int idx, int matDim);

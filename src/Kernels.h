@@ -43,7 +43,9 @@ __global__ void squareRootIntrinsic(int* results, const int nCol, const int resu
 
 //__global__ void computeUpperTriangularIndices(int* resultMatrix, int nCol, int numberOfElements);
 
-__global__ void outerProductSmartBruteForce(float* resultMatrix, float* vec, int vecNCol);
+__global__ void outerProductSmartBruteForce(float* resultMatrix, float* vec, int vectorLength);
 
+
+__global__ void outerProductSmartBruteForceLessThreads(float* resultMatrix, float* vec, int vectorLength);
 
 #endif /* KERNELS_H_ */

@@ -8,10 +8,7 @@
 #include "HelperFunctions.h"
 #include "Kernels.h"
 
-//NEED TO USE THE DOUBLE PRECISION SQRT :(
-//TODO: benchmarks
-//TODO: Check that a brute force outer product kernel produces the same results in the upper product part of the matrix as
-//the upper product kernel
+
 
 
 int main()
@@ -25,9 +22,12 @@ int main()
 	//runBenchmarkOneBigKernel(3000);
 	//arbTestOneBigKernel(8);
 
+
+
+	//checkCorrectness();
+
 	//runBenchmarkSmartBruteForce(3000);
-	//testSqrt();
-	checkCorrectness();
+	runBenchmarkSmartBruteForceLessThreads(3000);
 
 	//cudaDeviceReset();
 

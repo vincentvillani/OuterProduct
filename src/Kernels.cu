@@ -237,8 +237,30 @@ __global__ void outerProductSmartBruteForce(float* resultMatrix, float* vec, int
 
 	int index = (row * vectorLength + col) - (row * (row + 1)) / 2;
 
-	resultMatrix[index] = vec[row] * vec[col];
+	resultMatrix[index] += vec[row] * vec[col];
 
+}
+
+
+__global__ void outerProductSmartBruteForceLessThreads(float* resultMatrix, float* vec, int vectorLength)
+{
+	int col = (blockIdx.x * blockDim.x) + threadIdx.x; //column
+	int row = (blockIdx.y * blockDim.y) + threadIdx.y; //row
+
+	//check bounds
+	if(row >= vectorLength || col >= vectorLength)
+		return;
+
+	//transpose
+	if(row > col)
+	{
+		row = vectorLength - row;
+		col = row + col;
+	}
+
+	int index = (row * vectorLength + col) - (row * (row + 1)) / 2;
+
+	resultMatrix[index] += vec[row] * vec[col];
 }
 
 
