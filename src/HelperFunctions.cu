@@ -851,6 +851,27 @@ float* computerOuterProductCPU(float* vec, int vecLength)
 }
 
 
+//THIS IS THE SMART ONE
+float* computeOuterProductUpperTriCPU(float* vec, int vecLength)
+{
+	int resultLength = upperTriangularLength(vecLength);
+	float* result = (float*)malloc(sizeof(float) * resultLength);
+
+	//int colOffset = 0;
+	for(int row = 0; row < vecLength; ++row)
+	{
+		for(int col = row; col < vecLength; ++col)
+		{
+			result[ (row * vecLength + col) - upperTriangularLength(row) ] = vec[row] * vec[col];
+		}
+
+		//++colOffset;
+	}
+
+	return result;
+}
+
+
 float* extractUpperTriangularElements(float* vec, int vecLength)
 {
 	int triLength = upperTriangularLength(vecLength);
@@ -977,6 +998,51 @@ void checkCorrectness()
 
 	cudaFree(d_vector);
 	cudaFree(d_triangularResult);
+}
+
+
+void checkCorrectnessCPU()
+{
+	float maxError = 0.005f;
+
+	int vectorSize = 4096 * 4;
+	float* vector = (float*)malloc(sizeof(float) * vectorSize);
+	float* resultBrute;
+	float* resultSmart;
+
+	for(int i = 0; i < vectorSize; ++i)
+		vector[i] = i + 1;
+
+	//Do the brute force outer product on the CPU
+	resultBrute = computerOuterProductCPU(vector, vectorSize);
+
+	int upperTriangularLengthVal = upperTriangularLength(vectorSize);
+
+	//resultBruteTriangularResult = (float*)malloc(sizeof(float) * upperTriangularLengthVal);
+
+
+	//Are they more or less the same results?
+
+	//get the upper tri results from the brute force result array
+	resultBrute = extractUpperTriangularElements(resultBrute, vectorSize);
+
+	resultSmart = computeOuterProductUpperTriCPU(vector, vectorSize);
+
+
+
+	for(int i = 0; i < upperTriangularLengthVal; ++i)
+	{
+		if( abs(resultBrute[i] - resultSmart[i]) > maxError)
+		{
+			printf("Error detected: index: %d, CPU: %f, GPU: %f\n", i, resultBrute[i], resultSmart[i]);
+		}
+
+	}
+
+
+	free(vector);
+	free(resultBrute);
+	free(resultSmart);
 }
 
 

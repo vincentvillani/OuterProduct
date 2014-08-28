@@ -264,5 +264,37 @@ __global__ void outerProductSmartBruteForceLessThreads(float* resultMatrix, floa
 }
 
 
+//Specialised outer product for DSPSR
+__global__ void outerProductUpperTri(cuFloatComplex* resultMatrix, cuFloatComplex* vec, unsigned int vectorLength)
+{
+	int col = (blockIdx.x * blockDim.x) + threadIdx.x; //column
+	int row = (blockIdx.y * blockDim.y) + threadIdx.y; //row
+
+	//check bounds
+	if(row >= vectorLength || col >= vectorLength)
+		return;
+
+	//transpose
+	if(row > col)
+	{
+		row = vectorLength - row;
+		col = row + col;
+	}
+
+	int index = (row * vectorLength + col) - (row * (row + 1)) / 2;
+
+	resultMatrix[index] = cuCaddf(resultMatrix[index], cuCmulf(vec[row], vec[col]));
+}
+
+
+__global__ void normalise(float* result, unsigned int resultLength, float* amps, unsigned int* hits)
+{
+	int absoluteThreadIdx = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if(absoluteThreadIdx > resultLength)
+		return;
+
+	result[absoluteThreadIdx] = amps[absoluteThreadIdx] / hits[absoluteThreadIdx / 4];
+}
 
 

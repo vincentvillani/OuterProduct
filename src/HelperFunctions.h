@@ -29,6 +29,8 @@ void computeOuterProductSmartBruteForce(float* resultMatrix ,float* vec, int vec
 
 void computeOuterProductSmartBruteForceLessThreads(float* resultMatrix ,float* vec, int vecNCol, int blockDim);
 
+float* computerOuterProductCPU(float* vec, int vecLength);
+float* computeOuterProductUpperTriCPU(float* vec, int vecLength);
 
 void arbTest(int vectorLength, int resultGridDim);
 
@@ -53,6 +55,7 @@ void runBenchmarkSmartBruteForceLessThreads(int iterations);
 int  upperTrianglarRowIndexIntrinsicHost(int idx, int matDim);
 void testSqrt();
 void checkCorrectness();
+void checkCorrectnessCPU();
 
 
 

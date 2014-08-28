@@ -10,6 +10,7 @@
 
 #include <cuda_runtime.h>
 #include <stdio.h>
+#include <cuComplex.h>
 
 __device__ __host__ unsigned int upperTriangularLength(unsigned int numRows);
 
@@ -43,9 +44,16 @@ __global__ void squareRootIntrinsic(int* results, const int nCol, const int resu
 
 //__global__ void computeUpperTriangularIndices(int* resultMatrix, int nCol, int numberOfElements);
 
+
+
 __global__ void outerProductSmartBruteForce(float* resultMatrix, float* vec, int vectorLength);
 
-
 __global__ void outerProductSmartBruteForceLessThreads(float* resultMatrix, float* vec, int vectorLength);
+
+//Specialised outer product for DSPSR
+__global__ void outerProductUpperTri(cuFloatComplex* resultMatrix, cuFloatComplex* vec, unsigned int vectorLength);
+
+
+__global__ void normalise(float* result, unsigned int resultLength, float* amps, unsigned int* hits);
 
 #endif /* KERNELS_H_ */
