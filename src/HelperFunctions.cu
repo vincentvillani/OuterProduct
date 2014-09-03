@@ -342,6 +342,84 @@ void arbTestOneBigKernel(int vectorLength)
 }
 
 
+float* convertToSymmetric(float* upperTriangle, int rowLength)
+{
+	//rowLength == colLength
+
+	float* fullMatrix = (float*)malloc(sizeof(float) * rowLength * rowLength);
+
+	//For each row
+	for(int row = 0; row < rowLength; ++row)
+	{
+		// ---- FULL MATRIX INDEXES ----
+
+		//Compute the diagonalIdx
+		int diagonalIndex = (row * rowLength) + row;
+
+        //printf("DiagonalIndex: %d\n", diagonalIndex);
+
+		// ---- TRI MATRIX INDEXES ----
+		int triDiagonalIndex = diagonalIndex - ( (row * (row + 1)) / 2);
+
+		int indexOffset = 0;
+		//print down the corresponding row and column
+		for(int printIdx = row; printIdx < rowLength; ++printIdx)
+		{
+			int upperTriIndex = triDiagonalIndex + indexOffset;
+
+			//place in row
+			fullMatrix[diagonalIndex + indexOffset] = upperTriangle[upperTriIndex];
+
+            if(diagonalIndex + (rowLength * indexOffset) == (rowLength * rowLength))
+                break;
+
+			//place in col
+			fullMatrix[diagonalIndex + (rowLength * indexOffset)] = upperTriangle[upperTriIndex];
+			++indexOffset;
+		}
+	}
+
+	return fullMatrix;
+}
+
+
+
+void printSymmetricMatrix(float* symmetricMatrix, int rowLength, bool genFile)
+{
+	//rowLength == colLength
+
+	if(genFile)
+	{
+		FILE* file = fopen("/mnt/home/vvillani/deviceOuterProductFinal/symmetricMatrix.txt", "w");
+
+		for(int i = 0; i < rowLength * rowLength; ++i)
+		{
+			if(i != 0 && (i % rowLength) == 0)
+				fprintf(file, "\n");
+
+			fprintf(file, "%f, ", symmetricMatrix[i]);
+		}
+
+	    fprintf(file, "\n\n");
+
+	    fclose(file);
+	}
+	else
+	{
+		for(int i = 0; i < rowLength * rowLength; ++i)
+		{
+			if(i != 0 && (i % rowLength) == 0)
+				printf("\n");
+
+			printf("%f, ", symmetricMatrix[i]);
+		}
+
+	    printf("\n\n");
+	}
+
+}
+
+
 void printResultUpperTriangular(float* result, int rowLength, bool genFile)
 {
 	int numZeros = 0;
@@ -862,7 +940,7 @@ float* computeOuterProductUpperTriCPU(float* vec, int vecLength)
 	{
 		for(int col = row; col < vecLength; ++col)
 		{
-			result[ (row * vecLength + col) - upperTriangularLength(row) ] = vec[row] * vec[col];
+			result[ (row * vecLength + col) - upperTriangularLength(row) ] += vec[row] * vec[col];
 		}
 
 		//++colOffset;
@@ -1109,6 +1187,26 @@ void testSqrt()
 
 	cudaFree(d_results);
 
+}
+
+
+void testSymmetricConversion()
+{
+
+	int fullRowLength = 4;
+	int upperTriSize = upperTriangularLength(fullRowLength);
+
+	float* upperTriMatrix = (float*)malloc(sizeof(float) * upperTriSize);
+
+	//generate upper tri matrix
+	for(int i = 0; i < upperTriSize; ++i)
+	{
+		upperTriMatrix[i] = i + 1;
+	}
+
+	float* fullMatrix = convertToSymmetric(upperTriMatrix, fullRowLength);
+
+	printSymmetricMatrix(fullMatrix, fullRowLength, true);
 }
 
 

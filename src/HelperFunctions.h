@@ -37,6 +37,8 @@ void arbTest(int vectorLength, int resultGridDim);
 
 void arbTestOneBigKernel(int vectorLength);
 
+float* convertToSymmetric(float* upperTriangle, int rowLength);
+void printSymmetricMatrix(float* symmetricMatrix, int rowLength, bool genFile);
 
 void printResultUpperTriangular(float* result, int rowLength, bool genFile);
 void copyAndPrint(float* deviceData, int arrayLength, int rowLength);
@@ -54,8 +56,11 @@ void runBenchmarkSmartBruteForceLessThreads(int iterations);
 
 int  upperTrianglarRowIndexIntrinsicHost(int idx, int matDim);
 void testSqrt();
+void testSymmetricConversion();
+
 void checkCorrectness();
 void checkCorrectnessCPU();
+
 
 
 

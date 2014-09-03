@@ -24,12 +24,13 @@ int main()
 
 
 
-	checkCorrectnessCPU();
+	//checkCorrectnessCPU();
 	//checkCorrectness();
 
 	//runBenchmarkSmartBruteForce(3000);
 	//runBenchmarkSmartBruteForceLessThreads(3000);
 
+	testSymmetricConversion();
 
 	//cudaDeviceReset();
 
