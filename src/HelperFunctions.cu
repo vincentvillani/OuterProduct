@@ -400,8 +400,6 @@ void printSymmetricMatrix(float* symmetricMatrix, int rowLength, bool genFile)
 			fprintf(file, "%f, ", symmetricMatrix[i]);
 		}
 
-	    fprintf(file, "\n\n");
-
 	    fclose(file);
 	}
 	else
